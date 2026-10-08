@@ -1,14 +1,19 @@
 const mongoose = require("mongoose");
 
 async function connectDatabase() {
-  const { MONGODB_URI } = process.env;
+  const { MONGO_URI } = process.env;
 
-  if (!MONGODB_URI) {
-    throw new Error("MONGODB_URI is required to start the API.");
+  if (!MONGO_URI) {
+    throw new Error("MONGO_URI is required to start the API.");
   }
 
-  await mongoose.connect(MONGODB_URI);
-  console.log("Connected to MongoDB");
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log("Connected to MongoDB");
+  } catch (error) {
+    console.error(`MongoDB connection failed (${error.name}).`);
+    throw error;
+  }
 }
 
 module.exports = connectDatabase;

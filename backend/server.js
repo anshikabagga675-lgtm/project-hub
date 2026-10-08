@@ -4,54 +4,60 @@ const cors = require("cors");
 const express = require("express");
 const connectDatabase = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
+const projectRoutes = require("./routes/projectRoutes");
+const taskRoutes = require("./routes/taskRoutes");
+const commentRoutes = require("./routes/commentRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+const errorMiddleware = require("./middleware/errorMiddleware");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 
+const allowedOrigins = new Set([
+  "http://localhost:5173",
+  ...(process.env.FRONTEND_URL || "").split(",").map((origin) => origin.trim()).filter(Boolean),
+]);
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+      const error = new Error("This origin is not allowed by the CORS policy.");
+      error.status = 403;
+      return callback(error);
+    },
   })
 );
-app.use(express.json({ limit: "10kb" }));
+app.use(express.json({ limit: "100kb" }));
 
+app.get("/api/health", (req, res) => {
+  res.json({ success: true, message: "Project Hub API is running" });
+});
 app.get("/", (req, res) => {
-  res.json({ message: "Project Hub API is running" });
+  res.json({ success: true, message: "Project Hub API is running" });
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/projects", projectRoutes);
+app.use("/api/tasks", taskRoutes);
+app.use("/api/comments", commentRoutes);
+app.use("/api/notifications", notificationRoutes);
 
-app.use((req, res) => {
-  res.status(404).json({ message: "The requested endpoint was not found." });
+app.use((req, res, next) => {
+  const error = new Error("The requested endpoint was not found.");
+  error.status = 404;
+  next(error);
 });
-
-app.use((error, req, res, next) => {
-  if (res.headersSent) {
-    return next(error);
-  }
-
-  const status = Number.isInteger(error.status) && error.status >= 400 && error.status < 500
-    ? error.status
-    : 500;
-  const message = status === 500
-    ? "An unexpected server error occurred."
-    : "The request could not be processed.";
-
-  if (status === 500) {
-    console.error(error);
-  }
-
-  return res.status(status).json({ message });
-});
+app.use(errorMiddleware);
 
 async function startServer() {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-    throw new Error("JWT_SECRET must be set to a secret at least 32 characters long.");
+    throw new Error("JWT_SECRET must be configured with at least 32 characters.");
   }
 
   await connectDatabase();
-  app.listen(PORT, () => {
-    console.log(`Project Hub API listening on http://localhost:${PORT}`);
+  return app.listen(PORT, () => {
+    console.log(`Project Hub API listening on port ${PORT}`);
   });
 }
 

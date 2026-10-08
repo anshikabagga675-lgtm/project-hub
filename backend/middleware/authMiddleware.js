@@ -3,10 +3,14 @@ const User = require("../models/User");
 
 async function requireAuth(req, res, next) {
   const authorization = req.get("authorization");
-  const [scheme, token] = authorization ? authorization.split(" ") : [];
+  const match = authorization && authorization.match(/^Bearer\s+(\S+)$/i);
+  const token = match && match[1];
 
-  if (scheme !== "Bearer" || !token) {
-    return res.status(401).json({ message: "Authentication is required." });
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: "Authentication is required.",
+    });
   }
 
   try {
@@ -14,14 +18,20 @@ async function requireAuth(req, res, next) {
     const user = await User.findById(payload.sub);
 
     if (!user) {
-      return res.status(401).json({ message: "Your session is no longer valid." });
+      return res.status(401).json({
+        success: false,
+        message: "Your session is no longer valid.",
+      });
     }
 
     req.user = user;
     return next();
   } catch (error) {
     if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
-      return res.status(401).json({ message: "Your session is invalid or has expired." });
+      return res.status(401).json({
+        success: false,
+        message: "Your session is invalid or has expired.",
+      });
     }
 
     return next(error);
